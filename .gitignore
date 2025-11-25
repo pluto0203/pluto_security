@@ -14,6 +14,7 @@ node_modules/
 data/raw/*
 data/processed/*
 data/samples/*
+data
 
 # Models
 *.pt

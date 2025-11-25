@@ -5,3 +5,7 @@ ultralytics
 pydantic
 python-dotenv
 numpy
+pandas
+seaborn
+tqdm
+matplotlib
