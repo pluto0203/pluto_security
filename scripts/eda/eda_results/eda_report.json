@@ -1,0 +1,13 @@
+{
+  "total_sequences": 4,
+  "global_avg_density": 66.91,
+  "global_peak": 131,
+  "most_crowded_seq": "MOT20-04",
+  "small_object_ratio (<40px)": 0.0,
+  "recommend": {
+    "yolo_input_size": "640x640",
+    "conf_threshold": 0.25,
+    "nms_threshold": 0.45,
+    "note": "Rất nhiều small objects → dùng YOLOv8x + img_sz=1280 nếu muốn mAP cao"
+  }
+}
