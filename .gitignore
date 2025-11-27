@@ -16,6 +16,8 @@ data/processed/*
 data/samples/*
 data
 
+backend/models/bytetrack
+
 # Models
 *.pt
 *.pth

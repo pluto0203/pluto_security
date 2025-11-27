@@ -25,106 +25,103 @@ class YOLODetector:
         self.device = device
 
         if model_path is None:
-            model_path = "yolov11n.pt"
+            model_path = "yolo11n.pt"
             logger.info(f"Using default model: {model_path}")
 
+        logger.info(f"Loading YOLO model: {model_path} on {device}")
         self.model = YOLO(model_path)
         self.model.to(self.device)
 
-        self.model.overrides['conf'] = confidence_threshold
-        self.model.overrides['imgsz'] = img_size
-
-        logger.info(f"YOLODetector initialized with confidence threshold: {self.confidence_threshold}, image size: {self.img_size}")
+        logger.info(f"YOLODetector ready | conf: {confidence_threshold} | imgsz: {img_size}")
 
     def detect_frame(
             self,
             frame: np.ndarray,
-            save_img: bool = False,
-            save_path: Optional[Path] = None,
     ) -> List[Dict[str, Any]]:
-
+        """
+        Detect objects in a single frame
+        """
         if frame is None or frame.size == 0:
-            logger.warning(f"Frame size is empty, returning empty frame")
+            logger.warning("Empty frame received")
             return []
 
-        results = self.model(frame, verbose=False)[0]
+        h, w = frame.shape[:2]
+
+        # ĐÚNG CÁCH: truyền tham số trực tiếp vào predict
+        results = self.model(
+            frame,
+            conf=self.confidence_threshold,
+            imgsz=self.img_size,
+            classes=None,   # None = detect all, hoặc [0] nếu chỉ person
+            verbose=False,
+            device=self.device
+        )[0]
+
         detections: List[Dict[str, Any]] = []
 
-        for box in results.boxes:
-            if box.conf < self.confidence_threshold:
-                continue
+        if results.boxes is not None:
+            for box in results.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                conf = float(box.conf[0].cpu().numpy())
+                cls_id = int(box.cls[0].cpu().numpy())
+                cls_name = results.names[cls_id]
 
-            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-            conf = box.conf[0].cpu().numpy()
-            cls_id = int(box.cls[0].cpu().numpy())
-            cls_name = results.names[cls_id]
+                # Normalized bbox [0,1]
+                norm_bbox = [x1/w, y1/h, x2/w, y2/h]
+                pixel_bbox = [int(x1), int(y1), int(x2), int(y2)]
 
-            h,w = frame.shape[:2]
-            norm_bbox = [
-                x1/w, y1/h, x2/w, y2/h
-            ]
+                detections.append({
+                    "bbox": norm_bbox,
+                    "bbox_pixels": pixel_bbox,
+                    "class_id": cls_id,
+                    "class_name": cls_name,
+                    "confidence": conf,
+                })
 
-            detection = {
-                "bbox": norm_bbox,
-                "class_id": cls_id,
-                "class_name": cls_name,
-                "confidence": float(conf),
-            }
-            detections.append(detection)
-            logger.info(f"Detected box: {norm_bbox}, class: {cls_name}, confidence: {conf}")
-
-            if save_img and save_path:
-                annotated = results.plot()
-                cv2.imwrite(str(save_path / f"{cls_name}.png"), annotated)
-                logger.debug(f"Saved annotated image to {save_path}")
-
-            logger.debug(f"Detected {len(detections)} detections")
-            return detections
+        logger.debug(f"Frame {getattr(self, 'frame_idx', '?')}: Detected {len(detections)} objects")
+        return detections
 
     def detect_video(
             self,
             video_path: Union[str, Path],
-            save_annotated: bool = False,
+            save_annotated: bool = True,
             output_video: Optional[Path] = None,
     ) -> List[List[Dict[str, Any]]]:
-        """
-        Detect toàn bộ video, trả về list[per-frame detections]
-        Dùng cho: upload video → xử lý backend (Week 2)
-        """
         video_path = Path(video_path)
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise ValueError(f"Cannot open video: {video_path}")
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        logger.info(f"Processing video: {video_path.name} | {total_frames} frames | {fps:.1f} FPS")
 
-        # Setup video writer nếu cần lưu
+        logger.info(f"Processing video: {video_path.name} | {width}x{height} | {total_frames} frames")
+
         writer = None
         if save_annotated and output_video:
+            output_video = Path(output_video)
             output_video.parent.mkdir(parents=True, exist_ok=True)
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(str(output_video), fourcc, fps, (width, height))
 
         all_detections: List[List[Dict[str, Any]]] = []
-
         frame_idx = 0
+
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
 
-            detections = self.detect(frame)
+            detections = self.detect_frame(frame)
             all_detections.append(detections)
 
-            # Annotate + save nếu cần
-            if save_annotated:
-                annotated_frame = self.model.plot(frame=frame, boxes=detections)  # custom plot nếu muốn
-                if writer:
-                    writer.write(annotated_frame)
+            if save_annotated and writer:
+                # Dùng results.plot() đúng cách
+                results = self.model(frame, conf=self.confidence_threshold, imgsz=self.img_size, verbose=False)[0]
+                annotated = results.plot()  # Đây là cách đúng!
+                writer.write(annotated)
 
             frame_idx += 1
             if frame_idx % 100 == 0:
@@ -135,18 +132,12 @@ class YOLODetector:
             writer.release()
             logger.info(f"Annotated video saved → {output_video}")
 
-        logger.info(f"Video detection completed: {len(all_detections)} frames")
         return all_detections
 
     def detect_stream(
             self,
-            source: Union[int, str] = 0,  # 0 = webcam, hoặc RTSP URL
+            source: Union[int, str] = 0,
     ) -> Generator[tuple[int, np.ndarray, List[Dict[str, Any]]], None, None]:
-        """
-        Real-time detection generator.
-        Dùng cho: webcam demo (Week 3) và livestream dashboard
-        Yields: (frame_idx, annotated_frame, detections_json)
-        """
         cap = cv2.VideoCapture(source)
         if not cap.isOpened():
             raise ValueError(f"Cannot open stream: {source}")
@@ -157,24 +148,23 @@ class YOLODetector:
         while True:
             ret, frame = cap.read()
             if not ret:
-                logger.warning("Stream ended or error")
                 break
 
-            detections = self.detect(frame)
-            annotated_frame = self.model.plot(frame=frame)  # hoặc tự vẽ bbox đẹp hơn
+            detections = self.detect_frame(frame)
+
+            # Tạo annotated frame
+            results = self.model(frame, conf=self.confidence_threshold, imgsz=self.img_size, verbose=False)[0]
+            annotated_frame = results.plot()
 
             yield frame_idx, annotated_frame, detections
             frame_idx += 1
 
         cap.release()
-        logger.info("Stream detection stopped")
-
 
     def to_json(self, detections: List[Dict[str, Any]]) -> str:
-        return json.dumps(detections, indent=2)
+        return json.dumps(detections, indent=2, ensure_ascii=False)
 
     def __del__(self) -> None:
-        """Clean up model"""
         if hasattr(self, "model"):
             del self.model
-            logger.debug(f"Deleted YOLODetector model")
+            logger.debug("YOLODetector model cleaned up")
