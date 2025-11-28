@@ -19,6 +19,10 @@ data
 backend/models/bytetrack
 
 # Models
+backend/models/detections/exp10-new
+backend/models/detections/runs
+
+
 *.pt
 *.pth
 *.onnx

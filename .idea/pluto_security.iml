@@ -4,6 +4,8 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/backend/models/bytetrack" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
+      <excludeFolder url="file://$MODULE_DIR$/backend/models/detections/exp10-new" />
+      <excludeFolder url="file://$MODULE_DIR$/backend/models/detections/runs" />
     </content>
     <orderEntry type="jdk" jdkName="pluto_security" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
