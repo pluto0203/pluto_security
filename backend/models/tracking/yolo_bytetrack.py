@@ -7,23 +7,25 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from types import SimpleNamespace
+from configs.config import SMOKING_DETECTION_MODEL
 
 from ultralytics import YOLO
-from yolox.tracker.byte_tracker import BYTETracker
+# from yolox.tracker.byte_tracker import BYTETracker
+from backend.models.bytetrack.ByteTrack.yolox.tracker.byte_tracker import BYTETracker
 
 logger = logging.getLogger(__name__)
 
 class YOLOByteTracker:
     def __init__(
         self,
-        model_path: str = "yolo11n.pt",
+        model_path: str = SMOKING_DETECTION_MODEL,
         conf_threshold: float = 0.3,
         img_size: int = 640,
         device: str = "cuda",
         track_thresh: float = 0.2,
         track_buffer: int = 120,
         match_thresh: float = 0.7,
-        fps: int = 30
+        fps: int = 15
     ) -> None:
         logger.info(f"[INIT] Khởi tạo YOLOByteTracker | Device: {device} | Model: {model_path}")
 
@@ -61,7 +63,7 @@ class YOLOByteTracker:
         results = self.detector(
             frame,
             conf=self.conf_threshold,
-            classes=0,  # only person
+            classes=3,  # only person
             imgsz=self.img_size,
             verbose=False,
             device=self.device

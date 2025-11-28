@@ -1,0 +1,12 @@
+
+{
+  "smoking_forbidden_zones": [
+    {
+      "zone_id": "zone_01",
+      "name": "demo_hub",
+      "points": [[1458, 193], [766, 364], [1063, 902], [1912, 387]],
+      "color": [0, 0, 255],
+      "alert_level": "high"
+    }
+  ]
+}
